@@ -37,7 +37,7 @@ class MailView
       missing_format = ext && format.nil?
 
       if actions.include?(name) && !missing_format
-        mail = build_mail(name)
+        mail = build_mail(name, request)
 
         # Requested a specific bare MIME part. Render it verbatim.
         if part_type = request.params['part']
@@ -52,7 +52,7 @@ class MailView
         # Otherwise, show our message headers & frame the body.
         else
           part = find_preferred_part(mail, [format, 'text/html', 'text/plain'])
-          ok email_template.render(Object.new, :name => name, :mail => mail, :part => part, :part_url => part_body_url(part))
+          ok email_template.render(Object.new, :name => name, :mail => mail, :part => part, :part_url => part_body_url(part, request))
         end
       else
         not_found
@@ -97,8 +97,9 @@ class MailView
       end
     end
 
-    def build_mail(name)
-      mail = send(name)
+    def build_mail(name, request)
+      arity = self.class.instance_method(name.to_sym).arity
+      mail = arity == 1 ? send(name, request) : send(name)
       Mail.inform_interceptors(mail) if defined? Mail
       mail
     end
@@ -109,8 +110,8 @@ class MailView
       found || mail
     end
 
-    def part_body_url(part)
-      '?part=%s' % Rack::Utils.escape([part.main_type, part.sub_type].compact.join('/'))
+    def part_body_url(part, request)
+      ['?part=%s', request.query_string].compact.join('&') % Rack::Utils.escape([part.main_type, part.sub_type].compact.join('/'))
     end
 
     def find_part(mail, matching_content_type)
